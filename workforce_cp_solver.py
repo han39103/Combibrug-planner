@@ -289,20 +289,20 @@ def worker_can_do_project(w: dict, p: dict) -> bool:
    #   - If project_type contains 'CC'  → require CC=1
     #  - If project_type contains 'Combiworld' → require Combiworld=1
      # - If project_type contains 'MDT' → require MDT=1
-    p_type = str(p["type"]).lower()
-    
-    if "bsc" in p_type and w["BSC"] != 1:
+    p_type = str(p["type"]).upper()
+
+    if "BSC" in p_type and w["BSC"] != 1:
         return False
-    
-    if "cc" in p_type and w["CC"] != 1:
+
+    if "CC" in p_type and w["CC"] != 1:
         return False
-    
-    if "combiworld" in p_type and w["Combiworld"] != 1:
+
+    if "COMBIWORLD" in p_type and w["Combiworld"] != 1:
         return False
-    
-    if "mdt" in p_type and w["MDT"] != 1:
+
+    if "MDT" in p_type and w["MDT"] != 1:
         return False
-    
+
     return True
 
 # 5. CP-SAT model (new: X[w,p,day], weekly hours, slack)

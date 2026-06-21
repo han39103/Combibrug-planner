@@ -386,17 +386,17 @@ def solve(
             # Build a list of X for all days (only where demand>0)
             for day in DAY_NAMES:
         
-            if p["demand_by_day"][day] <= 0:
-                continue
-        
-            model.Add(
-                sum(
-                    X[w_idx, p_idx, day]
-                    for w_idx, w in enumerate(workers)
-                    if w["is_dreammaker"] == 1
+                if p["demand_by_day"][day] <= 0:
+                    continue
+            
+                model.Add(
+                    sum(
+                        X[w_idx, p_idx, day]
+                        for w_idx, w in enumerate(workers)
+                        if w["is_dreammaker"] == 1
+                    )
+                    >= 1
                 )
-                >= 1
-            )
 
     # 5) Continuity for projects with total weekly hours <= 40
     for p_idx, p in enumerate(projects):

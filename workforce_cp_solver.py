@@ -130,38 +130,6 @@ def parse_project_cell(cell) -> Tuple[int, float]:
 
 
 def build_project_list(projects_df: pd.DataFrame) -> List[dict]:
-    ###
-    Interpretation A:
-
-    Projects <= 40h/week:
-        keep as-is
-
-    Projects > 40h/week:
-        create:
-            - CORE project
-            - one subproject for every day whose demand
-              is below max_daily_demand
-
-    Example:
-
-        Mon 4
-        Tue 4
-        Wed 1
-        Fri 1
-
-    becomes
-
-        CORE:
-            Mon 4
-            Tue 4
-
-        WED:
-            Wed 1
-
-        FRI:
-            Fri 1
-    ###
-
     result = []
 
     for p in projects:
@@ -260,9 +228,8 @@ def build_worker_list(staff_df: pd.DataFrame) -> List[dict]:
       "MDT": int,
     }
 
-    Note: contract is per week. Workers with 0 hours are non-permanent.
-    Duplicate IDs are kept as separate workers (based on row index).
-    ###
+ #   Note: contract is per week. Workers with 0 hours are non-permanent.
+  #  Duplicate IDs are kept as separate workers (based on row index).
     workers = []
 
     for _, row in staff_df.iterrows():
@@ -297,12 +264,11 @@ def build_worker_list(staff_df: pd.DataFrame) -> List[dict]:
 
 def worker_can_do_project(w: dict, p: dict) -> bool:
     ###
-    Simple qualification rule:
-      - If project_type contains 'BSC' → require BSC=1
-      - If project_type contains 'CC'  → require CC=1
-      - If project_type contains 'Combiworld' → require Combiworld=1
-      - If project_type contains 'MDT' → require MDT=1
-    ###
+ #   Simple qualification rule:
+  #    - If project_type contains 'BSC' → require BSC=1
+   #   - If project_type contains 'CC'  → require CC=1
+    #  - If project_type contains 'Combiworld' → require Combiworld=1
+     # - If project_type contains 'MDT' → require MDT=1
     p_type = str(p["type"]).upper()
 
     # Basic assumptions based on your data
@@ -325,27 +291,27 @@ def solve(
            Dict[Tuple[int, int, str], int],
            cp_model.CpSolver]:
     ###
-    Build and solve CP-SAT.
+#    Build and solve CP-SAT.
 
-    Variables:
-      X[w,p,d] ∈ {0,1}  -> worker w covers project p on day d
-      Y[w,p]   ∈ {0,1}  -> worker w belongs to project p core team (for continuity)
-      shortage[p,d] ∈ {0..demand[p,d]}  -> unmet demand on that project-day
+ #   Variables:
+  #    X[w,p,d] ∈ {0,1}  -> worker w covers project p on day d
+   #   Y[w,p]   ∈ {0,1}  -> worker w belongs to project p core team (for continuity)
+    #  shortage[p,d] ∈ {0..demand[p,d]}  -> unmet demand on that project-day
 
-    Constraints (main ones):
-      - Availability: X[w,p,d] = 0 if not available that day
-      - Qualification: X[w,p,d] = 0 if worker not qualified
-      - One project per worker per day
-      - Project demand per day with slack: sum_w X[w,p,d] + shortage[p,d] = demand[p,d]
-      - 4-eye principle for Combiworld/MDT: per project (any day with demand)
-      - Weekly hours per worker: sum_{p,d} X[w,p,d] * hours[p,d] <= min(40, contract_hours_week)
-      - For projects with weekly_hours <= 40: continuity via Y[w,p]:
-          * X[w,p,d] <= Y[w,p]
-          * sum_w Y[w,p] = max_daily_demand(p)
+#    Constraints (main ones):
+ #     - Availability: X[w,p,d] = 0 if not available that day
+  #    - Qualification: X[w,p,d] = 0 if worker not qualified
+   #   - One project per worker per day
+    #  - Project demand per day with slack: sum_w X[w,p,d] + shortage[p,d] = demand[p,d]
+     # - 4-eye principle for Combiworld/MDT: per project (any day with demand)
+      #- Weekly hours per worker: sum_{p,d} X[w,p,d] * hours[p,d] <= min(40, contract_hours_week)
+      #- For projects with weekly_hours <= 40: continuity via Y[w,p]:
+ #         * X[w,p,d] <= Y[w,p]
+  #        * sum_w Y[w,p] = max_daily_demand(p)
 
-    Objective:
-      Minimize  BigM * total_shortage  + sum_w |AssignedHours_w - ContractHours_w|
-    ###
+   # Objective:
+    #  Minimize  BigM * total_shortage  + sum_w |AssignedHours_w - ContractHours_w|
+###
     num_w = len(workers)
     num_p = len(projects)
 
@@ -540,13 +506,13 @@ def build_output_table(
     assignments: Dict[Tuple[int, int, str], int],
 ) -> pd.DataFrame:
     ###
-    Per-worker summary table:
-      Worker_ID
-      Contract_hrs_per_week
-      Assigned_projects (list, with per-day detail)
-      Assigned_hours_week
-      Deviation_from_contract (= assigned - contract, can be negative)
-      Is_permanent
+#    Per-worker summary table:
+ #     Worker_ID
+  #    Contract_hrs_per_week
+   #   Assigned_projects (list, with per-day detail)
+    #  Assigned_hours_week
+     # Deviation_from_contract (= assigned - contract, can be negative)
+      #Is_permanent
     ###
     rows = []
 
@@ -591,15 +557,15 @@ def build_shortage_table(
     shortages: Dict[Tuple[int, int, str], int],
 ) -> pd.DataFrame:
     ###
-    Project-day shortage table:
-      Project
-      Project_Type
-      Day
-      Demand
-      Filled
-      Missing
-      Hours_per_worker
-      Unfilled_worker_hours
+#    Project-day shortage table:
+ #     Project
+  #    Project_Type
+   #   Day
+#      Demand
+ #     Filled
+  #    Missing
+   #   Hours_per_worker
+    #  Unfilled_worker_hours
     ###
     rows = []
 

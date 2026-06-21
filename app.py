@@ -3,6 +3,7 @@
 import io
 import streamlit as st
 import pandas as pd
+import traceback
 
 from workforce_cp_solver import run_pipeline, WEEKDAY_MAP, DEFAULT_STAFF, DEFAULT_PROJECTS
 
@@ -56,7 +57,6 @@ if run_btn:
                 first_weekday=first_weekday,
                 num_days=int(num_days),
             )
-        import traceback
         
         except Exception:
             st.error(traceback.format_exc())

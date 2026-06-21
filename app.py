@@ -56,10 +56,11 @@ if run_btn:
                 first_weekday=first_weekday,
                 num_days=int(num_days),
             )
-        except Exception as exc:
-            st.error(f"Solver error: {exc}")
+        import traceback
+        
+        except Exception:
+            st.error(traceback.format_exc())
             st.stop()
-
     # Status badge
     if status_str in ("OPTIMAL", "FEASIBLE"):
         st.success(f"Solver status: **{status_str}**")

@@ -54,8 +54,8 @@ FULL_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday",
 
 def load_data(staff_source, projects_source):
     ###
-    Accept file paths (str/Path) or file-like objects.
-    Returns (staff_df, projects_df).
+ #   Accept file paths (str/Path) or file-like objects.
+  #  Returns (staff_df, projects_df).
     ###
     staff_df = pd.read_excel(staff_source)
     projects_df = pd.read_excel(projects_source)
@@ -112,8 +112,8 @@ def ask_planning_info() -> Tuple[str, int]:
 
 def parse_project_cell(cell) -> Tuple[int, float]:
     ###
-    Project day cells are strings like '(1, 5.0)' or '(3, 1.5)'.
-    Returns (demand: int, duration_hours: float).
+#    Project day cells are strings like '(1, 5.0)' or '(3, 1.5)'.
+ #   Returns (demand: int, duration_hours: float).
     ###
     if pd.isna(cell):
         return 0, 0.0
@@ -214,8 +214,8 @@ def build_worker_list(staff_df: pd.DataFrame) -> List[dict]:
     )
     workers = []
     ###
-    Returns list of worker dicts:
-
+ #   Returns list of worker dicts:
+###
     {
       "id": int,
       "contract_hours_week": float,

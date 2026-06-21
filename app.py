@@ -7,14 +7,43 @@ import traceback
 import base64
 
 from workforce_cp_solver import run_pipeline, WEEKDAY_MAP, DEFAULT_STAFF, DEFAULT_PROJECTS
+def add_bg_image():
 
+    with open("assets/20260621_234523245_iOS.jpg", "rb") as f:
+        data = base64.b64encode(f.read()).decode()
+
+    st.markdown(
+        f"""
+        <style>
+        .stApp {{
+            background-image: url("data:image/jpg;base64,{data}");
+            background-size: cover;
+            background-position: center;
+        }}
+
+        .stApp::before {{
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255,255,255,0.85);
+            z-index: -1;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 st.set_page_config(page_title="Workforce Assignment Solver", layout="wide")
 col1, col2, col3 = st.columns([1,2,1])
+
+add_bg_image()
 
 with col2:
     st.image(
         "assets/Combibrug logo.png",
-        width=300)
+        width=350)
 
 st.title("📋 Workforce Assignment CP Solver")
 st.caption("Constraint Programming model — OR-Tools CP-SAT (weekly model)")

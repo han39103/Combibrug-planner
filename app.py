@@ -43,7 +43,8 @@ add_bg_image()
 with col2:
     st.image(
         "assets/Combibrug logo.png",
-        width=350)
+        width=250)
+    
 
 st.title("📋 Workforce Assignment CP Solver")
 st.caption("Constraint Programming model — OR-Tools CP-SAT (weekly model)")

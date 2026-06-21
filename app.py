@@ -11,9 +11,9 @@ st.title("📋 Workforce Assignment CP Solver")
 st.caption("Constraint Programming model — OR-Tools CP-SAT (weekly model)")
 
 
-# ---------------------------------------------------------------------------
+# ##################################################
 # Sidebar: inputs
-# ---------------------------------------------------------------------------
+# ##################################################
 with st.sidebar:
     st.header("Input Files")
     staff_file = st.file_uploader("Staff availability file (.xlsx)", type=["xlsx"])
@@ -40,9 +40,9 @@ with st.sidebar:
     run_btn = st.button("▶  Run Solver", type="primary", use_container_width=True)
 
 
-# ---------------------------------------------------------------------------
+# ##################################################
 # Main panel
-# ---------------------------------------------------------------------------
+# ##################################################
 if run_btn:
     # Use uploaded files or fall back to defaults on disk
     staff_source = staff_file if staff_file is not None else DEFAULT_STAFF

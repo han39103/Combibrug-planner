@@ -1,6 +1,5 @@
 ## `app.py` (updated to match weekly model + fix f‑strings)
 
-```python
 import io
 import streamlit as st
 import pandas as pd
@@ -118,6 +117,4 @@ else:
         "then click **Run Solver**.\n\n"
         "Note: The optimization itself is based on a single week (Mon–Fri)."
     )
-```
 
----

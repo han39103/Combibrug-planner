@@ -662,7 +662,7 @@ def run_pipeline(staff_source, projects_source, first_weekday, num_days, output_
     summary = {
         "n_workers": len(workers),
         "n_projects": len(projects),
-        "n_working_days": "1 week (Mon–Fri)",  # Mon–Fri
+        "n_working_days": "Mon–Fri",  # Mon–Fri
         "solver_status": status_str,
         "permanent_contract_hrs": round(total_contr, 2),
         "permanent_assigned_hrs": round(total_asgnd, 2),

@@ -130,6 +130,48 @@ def parse_project_cell(cell) -> Tuple[int, float]:
 
 
 def build_project_list(projects_df: pd.DataFrame) -> List[dict]:
+
+    projects = []
+
+    for _, row in projects_df.iterrows():
+
+        p_name = str(row["project_name"])
+        p_type = str(row["project_type"])
+
+        demand_by_day = {}
+        hours_by_day = {}
+
+        total_week_hours = 0.0
+        max_daily_demand = 0
+
+        for day in DAY_NAMES:
+
+            demand, hours = parse_project_cell(row.get(day))
+
+            demand_by_day[day] = demand
+            hours_by_day[day] = hours
+
+            total_week_hours += demand * hours
+            max_daily_demand = max(max_daily_demand, demand)
+
+        if max_daily_demand == 0:
+            continue
+
+        projects.append(
+            {
+                "name": p_name,
+                "type": p_type,
+                "demand_by_day": demand_by_day,
+                "hours_by_day": hours_by_day,
+                "weekly_hours": total_week_hours,
+                "max_daily_demand": max_daily_demand,
+            }
+        )
+
+    return projects
+
+def split_large_projects(projects):
+
     result = []
 
     for p in projects:
@@ -169,8 +211,6 @@ def build_project_list(projects_df: pd.DataFrame) -> List[dict]:
 
         result.append(core_project)
 
-        # create subprojects for smaller-demand days
-
         for day in DAY_NAMES:
 
             demand = p["demand_by_day"][day]
@@ -181,28 +221,22 @@ def build_project_list(projects_df: pd.DataFrame) -> List[dict]:
             if demand == max_demand:
                 continue
 
-            sub_demands = {
-                d: 0 for d in DAY_NAMES
-            }
-
-            sub_hours = {
-                d: 0.0 for d in DAY_NAMES
-            }
+            sub_demands = {d: 0 for d in DAY_NAMES}
+            sub_hours = {d: 0.0 for d in DAY_NAMES}
 
             sub_demands[day] = demand
             sub_hours[day] = p["hours_by_day"][day]
 
-            sub_project = {
-                "name": f"{p['name']}_{day}",
-                "type": p["type"],
-                "demand_by_day": sub_demands,
-                "hours_by_day": sub_hours,
-                "weekly_hours":
-                    demand * p["hours_by_day"][day],
-                "max_daily_demand": demand,
-            }
-
-            result.append(sub_project)
+            result.append(
+                {
+                    "name": f"{p['name']}_{day}",
+                    "type": p["type"],
+                    "demand_by_day": sub_demands,
+                    "hours_by_day": sub_hours,
+                    "weekly_hours": demand * p["hours_by_day"][day],
+                    "max_daily_demand": demand,
+                }
+            )
 
     return result
 
@@ -212,21 +246,6 @@ def build_worker_list(staff_df: pd.DataFrame) -> List[dict]:
         subset=["ID"],
         keep="first"
     )
-    workers = []
-    ###
- #   Returns list of worker dicts:
-###
-    {
-      "id": int,
-      "contract_hours_week": float,
-      "is_permanent": int,
-      "is_dreammaker": int,
-      "avail_on": {day: 0/1},
-      "BSC": int,
-      "CC": int,
-      "Combiworld": int,
-      "MDT": int,
-    }
 
  #   Note: contract is per week. Workers with 0 hours are non-permanent.
   #  Duplicate IDs are kept as separate workers (based on row index).
@@ -269,17 +288,20 @@ def worker_can_do_project(w: dict, p: dict) -> bool:
    #   - If project_type contains 'CC'  → require CC=1
     #  - If project_type contains 'Combiworld' → require Combiworld=1
      # - If project_type contains 'MDT' → require MDT=1
-    p_type = str(p["type"]).upper()
-
-    # Basic assumptions based on your data
-    if "BSC" in p_type and w["BSC"] != 1:
+    p_type = str(p["type"]).lower()
+    
+    if "bsc" in p_type and w["BSC"] != 1:
         return False
+    
     if "cc" in p_type and w["CC"] != 1:
         return False
+    
     if "combiworld" in p_type and w["Combiworld"] != 1:
         return False
+    
     if "mdt" in p_type and w["MDT"] != 1:
         return False
+    
     return True
 
 # 5. CP-SAT model (new: X[w,p,day], weekly hours, slack)
@@ -446,7 +468,7 @@ def solve(
                     terms.append((X[w_idx, p_idx, day], coef))
 
         if terms:
-            H_w = model.NewIntVar(0, int(round(max_week_hours * SCALE * 2)), f"H_w{w_idx}")
+            H_w = model.NewIntVar(0, int(round(MAX_WORKER_HOURS  * SCALE * 2)), f"H_w{w_idx}")
             model.Add(H_w == sum(var * coef for (var, coef) in terms))
         else:
             H_w = model.NewIntVar(0, 0, f"H_w{w_idx}")

@@ -53,10 +53,10 @@ FULL_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday",
 # #########################
 
 def load_data(staff_source, projects_source):
-    """
+    ###
     Accept file paths (str/Path) or file-like objects.
     Returns (staff_df, projects_df).
-    """
+    ###
     staff_df = pd.read_excel(staff_source)
     projects_df = pd.read_excel(projects_source)
     return staff_df, projects_df
@@ -67,24 +67,24 @@ def load_data(staff_source, projects_source):
 # #########################
 
 def build_calendar(first_weekday: str, num_days: int) -> List[dict]:
-    """
-    Return a list of {"day": int, "weekday": str} for each day.
-    first_weekday must be a full name ("Monday", etc.).
-    """
+
+#    Return a list of {"day": int, "weekday": str} for each day.
+ #   first_weekday must be a full name ("Monday", etc.).
+
     start_idx = FULL_WEEK.index(first_weekday)
     return [
-        {"day": d, "weekday": FULL_WEEK[(start_idx + d - 1) % 7]}
+        {"day": d, "weekday": FULL_WEEK[(start_idx + d  1) % 7]}
         for d in range(1, num_days + 1)
     ]
 
 
 def build_working_days(calendar: List[dict]) -> List[dict]:
-    """Filter calendar to Mon–Fri only."""
+    #Filter calendar to Mon–Fri only
     return [c for c in calendar if c["weekday"] in DAY_NAMES]
 
 
 def ask_planning_info() -> Tuple[str, int]:
-    """Interactive CLI prompt (kept for CLI compatibility)."""
+    ###Interactive CLI prompt (kept for CLI compatibility).###
     print("\n=== Planning Period Setup ===")
     while True:
         raw = input(
@@ -111,10 +111,10 @@ def ask_planning_info() -> Tuple[str, int]:
 # #########################
 
 def parse_project_cell(cell) -> Tuple[int, float]:
-    """
+    ###
     Project day cells are strings like '(1, 5.0)' or '(3, 1.5)'.
     Returns (demand: int, duration_hours: float).
-    """
+    ###
     if pd.isna(cell):
         return 0, 0.0
     s = str(cell).strip()
@@ -130,7 +130,7 @@ def parse_project_cell(cell) -> Tuple[int, float]:
 
 
 def build_project_list(projects_df: pd.DataFrame) -> List[dict]:
-    """
+    ###
     Interpretation A:
 
     Projects <= 40h/week:
@@ -160,7 +160,7 @@ def build_project_list(projects_df: pd.DataFrame) -> List[dict]:
 
         FRI:
             Fri 1
-    """
+    ###
 
     result = []
 
@@ -245,7 +245,7 @@ def build_worker_list(staff_df: pd.DataFrame) -> List[dict]:
         keep="first"
     )
     workers = []
-    """
+    ###
     Returns list of worker dicts:
 
     {
@@ -262,7 +262,7 @@ def build_worker_list(staff_df: pd.DataFrame) -> List[dict]:
 
     Note: contract is per week. Workers with 0 hours are non-permanent.
     Duplicate IDs are kept as separate workers (based on row index).
-    """
+    ###
     workers = []
 
     for _, row in staff_df.iterrows():
@@ -296,13 +296,13 @@ def build_worker_list(staff_df: pd.DataFrame) -> List[dict]:
 # #########################
 
 def worker_can_do_project(w: dict, p: dict) -> bool:
-    """
+    ###
     Simple qualification rule:
       - If project_type contains 'BSC' → require BSC=1
       - If project_type contains 'CC'  → require CC=1
       - If project_type contains 'Combiworld' → require Combiworld=1
       - If project_type contains 'MDT' → require MDT=1
-    """
+    ###
     p_type = str(p["type"]).upper()
 
     # Basic assumptions based on your data
@@ -324,7 +324,7 @@ def solve(
 ) -> Tuple[str, Dict[Tuple[int, int, str], int],
            Dict[Tuple[int, int, str], int],
            cp_model.CpSolver]:
-    """
+    ###
     Build and solve CP-SAT.
 
     Variables:
@@ -345,7 +345,7 @@ def solve(
 
     Objective:
       Minimize  BigM * total_shortage  + sum_w |AssignedHours_w - ContractHours_w|
-    """
+    ###
     num_w = len(workers)
     num_p = len(projects)
 
@@ -539,7 +539,7 @@ def build_output_table(
     projects: List[dict],
     assignments: Dict[Tuple[int, int, str], int],
 ) -> pd.DataFrame:
-    """
+    ###
     Per-worker summary table:
       Worker_ID
       Contract_hrs_per_week
@@ -547,7 +547,7 @@ def build_output_table(
       Assigned_hours_week
       Deviation_from_contract (= assigned - contract, can be negative)
       Is_permanent
-    """
+    ###
     rows = []
 
     for w_idx, w in enumerate(workers):
@@ -590,7 +590,7 @@ def build_shortage_table(
     projects: List[dict],
     shortages: Dict[Tuple[int, int, str], int],
 ) -> pd.DataFrame:
-    """
+    ###
     Project-day shortage table:
       Project
       Project_Type
@@ -600,7 +600,7 @@ def build_shortage_table(
       Missing
       Hours_per_worker
       Unfilled_worker_hours
-    """
+    ###
     rows = []
 
     for p_idx, p in enumerate(projects):
@@ -639,12 +639,11 @@ def run_pipeline(
     num_days: int,
     output_path: str | None = None,
 ):
-    """
-    Full pipeline: load → build params → solve → build output tables.
 
-    Note: first_weekday & num_days are kept for interface compatibility,
-    but the model is built for a single generic week (Mon–Fri).
-    """
+#    Full pipeline: load → build params → solve → build output tables.
+
+ #   Note: first_weekday & num_days are kept for interface compatibility,
+  #  but the model is built for a single generic week (Mon–Fri).
     staff_df, projects_df = load_data(staff_source, projects_source)
 
     workers = build_worker_list(staff_df)

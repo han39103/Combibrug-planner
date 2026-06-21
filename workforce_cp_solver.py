@@ -9,9 +9,9 @@ import pandas as pd
 from ortools.sat.python import cp_model
 
 
-# ---------------------------------------------------------------------------
+# #########################
 # Constants
-# ---------------------------------------------------------------------------
+# #########################
 
 DEFAULT_STAFF = "Staff_data_availability.xlsx"
 DEFAULT_PROJECTS = "structured_projects.xlsx"
@@ -48,9 +48,9 @@ FULL_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday",
              "Friday", "Saturday", "Sunday"]
 
 
-# ---------------------------------------------------------------------------
+# #########################
 # 1. Data loading
-# ---------------------------------------------------------------------------
+# #########################
 
 def load_data(staff_source, projects_source):
     """
@@ -62,9 +62,9 @@ def load_data(staff_source, projects_source):
     return staff_df, projects_df
 
 
-# ---------------------------------------------------------------------------
+# #########################
 # 2. Calendar helpers  (kept mainly for compatibility with app)
-# ---------------------------------------------------------------------------
+# #########################
 
 def build_calendar(first_weekday: str, num_days: int) -> List[dict]:
     """
@@ -106,9 +106,9 @@ def ask_planning_info() -> Tuple[str, int]:
     return first_weekday, n_days
 
 
-# ---------------------------------------------------------------------------
+# #########################
 # 3. Parsing and project/worker structures
-# ---------------------------------------------------------------------------
+# #########################
 
 def parse_project_cell(cell) -> Tuple[int, float]:
     """
@@ -225,9 +225,9 @@ def build_worker_list(staff_df: pd.DataFrame) -> List[dict]:
     return workers
 
 
-# ---------------------------------------------------------------------------
+# #########################
 # 4. Qualification filter per project
-# ---------------------------------------------------------------------------
+# #########################
 
 def worker_can_do_project(w: dict, p: dict) -> bool:
     """
@@ -250,10 +250,7 @@ def worker_can_do_project(w: dict, p: dict) -> bool:
         return False
     return True
 
-
-# ---------------------------------------------------------------------------
 # 5. CP-SAT model (new: X[w,p,day], weekly hours, slack)
-# ---------------------------------------------------------------------------
 
 def solve(
     workers: List[dict],
@@ -288,9 +285,9 @@ def solve(
 
     model = cp_model.CpModel()
 
-    # ------------------------------
+    # ##########
     # Decision variables
-    # ------------------------------
+    # ##########
     # X[w,p,day]
     X = {}
     for w in range(num_w):
@@ -314,9 +311,9 @@ def solve(
                     0, demand, f"shortage_p{p_idx}_{day}"
                 )
 
-    # ------------------------------
+    # ##########
     # Constraints
-    # ------------------------------
+    # ##########
 
     # 1) Availability & qualification
     for w_idx, w in enumerate(workers):
@@ -424,18 +421,18 @@ def solve(
         model.Add(dev >= H_w - contract_scaled)
         deviation_vars.append(dev)
 
-    # ------------------------------
+    # ##########
     # Objective
-    # ------------------------------
+    # ##########
     BIG_M = 100000
     model.Minimize(
         BIG_M * sum(total_shortage_vars)
         + sum(deviation_vars)
     )
 
-    # ------------------------------
+    # ##########
     # Solve
-    # ------------------------------
+    # ##########
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = 120.0
     solver.parameters.log_search_progress = False
@@ -457,9 +454,9 @@ def solve(
     return status_str, assignments, shortage_results, solver
 
 
-# ---------------------------------------------------------------------------
+# #########################
 # 6. Output tables
-# ---------------------------------------------------------------------------
+# #########################
 
 def build_output_table(
     workers: List[dict],
@@ -555,9 +552,9 @@ def build_shortage_table(
     return pd.DataFrame(rows)
 
 
-# ---------------------------------------------------------------------------
+# #########################
 # 7. Public pipeline function (used by Streamlit + CLI)
-# ---------------------------------------------------------------------------
+# #########################
 
 def run_pipeline(
     staff_source,
@@ -607,9 +604,9 @@ def run_pipeline(
     return result_df, shortage_df, summary, status_str
 
 
-# ---------------------------------------------------------------------------
+# #########################
 # 8. CLI entry point
-# ---------------------------------------------------------------------------
+# #########################
 
 def main():
     parser = argparse.ArgumentParser(description="Workforce Assignment CP Solver")
@@ -654,7 +651,7 @@ def main():
     pd.set_option("display.width", 220)
     print(result_df.to_string(index=False))
 
-    print("\n--- Summary (permanent staff, weekly) ---")
+    print("\n# Summary (permanent staff, weekly) #")
     print(f"  Total contract hrs/week:  {summary['permanent_contract_hrs']:.1f}")
     print(f"  Total assigned hrs/week:  {summary['permanent_assigned_hrs']:.1f}")
     print(f"  Total absolute deviation: {summary['total_abs_deviation']:.1f}")
@@ -665,4 +662,4 @@ def main():
 if __name__ == "__main__":
     main()
 
----
+#

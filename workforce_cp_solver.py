@@ -1,6 +1,5 @@
 ## `workforce_cp_solver.py` (new)
 
-```python
 import argparse
 import ast
 import sys
@@ -665,6 +664,5 @@ def main():
 
 if __name__ == "__main__":
     main()
-```
 
 ---

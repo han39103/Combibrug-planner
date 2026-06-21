@@ -73,7 +73,7 @@ def build_calendar(first_weekday: str, num_days: int) -> List[dict]:
 
     start_idx = FULL_WEEK.index(first_weekday)
     return [
-        {"day": d, "weekday": FULL_WEEK[(start_idx + d  1) % 7]}
+        {"day": d, "weekday": FULL_WEEK[(start_idx + d - 1) % 7]}
         for d in range(1, num_days + 1)
     ]
 

@@ -79,9 +79,11 @@ if run_btn:
     c3.metric("Working days", summary["n_working_days"])
     c4.metric("Total |deviation| (permanent)", f"{summary['total_abs_deviation']:.1f} h")
 
-    c5, c6 = st.columns(2)
-    c5.metric("Permanent — contract hrs/week", f"{summary['permanent_contract_hrs']:.1f} h")
-    c6.metric("Permanent — assigned hrs/week", f"{summary['permanent_assigned_hrs']:.1f} h")
+    c5, c6, c7 = st.columns(3)
+    
+    c5.metric("Permanent contract hrs/week",f"{summary['permanent_contract_hrs']:.1f} h")
+    c6.metric("Permanent assigned hrs/week",f"{summary['permanent_assigned_hrs']:.1f} h")
+    c7.metric("Non-permanent assigned hrs",f"{summary['non_perm_assigned_hrs']:.1f} h")
 
     # Full results table
     st.subheader("Assignment Results (per worker, weekly)")

@@ -4,6 +4,7 @@ import io
 import streamlit as st
 import pandas as pd
 import traceback
+import base64
 
 from workforce_cp_solver import run_pipeline, WEEKDAY_MAP, DEFAULT_STAFF, DEFAULT_PROJECTS
 

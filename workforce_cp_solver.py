@@ -621,19 +621,13 @@ def build_shortage_table(
 # 7. Public pipeline function (used by Streamlit + CLI)
 # #########################
 
-def run_pipeline(
-    staff_source,
-    projects_source,
-    first_weekday: str,
-    num_days: int,
-    output_path: str | None = None,
-):
+def run_pipeline(staff_source, projects_source, first_weekday, num_days, output_path=None):
+    staff_df, projects_df = load_data(staff_source, projects_source)
 
 #    Full pipeline: load → build params → solve → build output tables.
 
  #   Note: first_weekday & num_days are kept for interface compatibility,
   #  but the model is built for a single generic week (Mon–Fri).
-    staff_df, projects_df = load_data(staff_source, projects_source)
 
     workers = build_worker_list(staff_df)
     projects = build_project_list(projects_df)

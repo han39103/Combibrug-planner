@@ -61,11 +61,6 @@ def load_data(staff_source, projects_source):
     projects_df = pd.read_excel(projects_source)
     return staff_df, projects_df
 
-staff_df, projects_df = load_data(staff_source, projects_source)
-
-print(staff_df.columns)
-print(staff_df[["Contract_hrs_per_week"]].head(20))
-print(staff_df.dtypes)
 
 
 # #########################

@@ -1,51 +1,53 @@
-"""
-Workforce Assignment CP Solver
-================================
-Implements the CSOP model from the thesis using OR-Tools CP-SAT.
+## `workforce_cp_solver.py` (new)
 
-Designed to run both as a standalone CLI script and as a module imported
-by a Streamlit app (app.py).
-
-Input files (defaults):
-  - Staff_data_availability.xlsx   (no is_stagiaire column required)
-  - structured_projects.xlsx
-
-CLI usage:
-  pip install ortools pandas openpyxl
-  python workforce_cp_solver.py
-  python workforce_cp_solver.py --staff my_staff.xlsx --projects my_projects.xlsx
-  python workforce_cp_solver.py --no-interactive        # test mode
-
-Streamlit usage:
-  See app.py — call run_pipeline() with file-like objects and month params.
-"""
-
+```python
 import argparse
 import ast
-import io
 import sys
+from typing import Dict, List, Tuple
+
 import pandas as pd
 from ortools.sat.python import cp_model
+
 
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
-DEFAULT_STAFF    = "Staff_data_availability.xlsx"
+DEFAULT_STAFF = "Staff_data_availability.xlsx"
 DEFAULT_PROJECTS = "structured_projects.xlsx"
 
 DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
-NOT_COLS  = {
-    "Monday":    "Not_Mon",
-    "Tuesday":   "Not_Tue",
+
+NOT_COLS = {
+    "Monday": "Not_Mon",
+    "Tuesday": "Not_Tue",
     "Wednesday": "Not_Wed",
-    "Thursday":  "Not_Thu",
-    "Friday":    "Not_Fri",
+    "Thursday": "Not_Thu",
+    "Friday": "Not_Fri",
 }
+
 COMBIWORLD_MDT_TYPES = {
-    "Combiworld", "MDT", "combiworld", "mdt",
-    "Combiworld/MDT", "MDT/Combiworld",
+    "Combiworld",
+    "MDT",
+    "combiworld",
+    "mdt",
+    "Combiworld/MDT",
+    "MDT/Combiworld",
 }
+
+WEEKDAY_MAP = {
+    "mon": "Monday",
+    "tue": "Tuesday",
+    "wed": "Wednesday",
+    "thu": "Thursday",
+    "fri": "Friday",
+    "sat": "Saturday",
+    "sun": "Sunday",
+}
+FULL_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday",
+             "Friday", "Saturday", "Sunday"]
+
 
 # ---------------------------------------------------------------------------
 # 1. Data loading
@@ -53,30 +55,22 @@ COMBIWORLD_MDT_TYPES = {
 
 def load_data(staff_source, projects_source):
     """
-    Accept file paths (str/Path) or file-like objects (e.g. Streamlit UploadedFile).
+    Accept file paths (str/Path) or file-like objects.
     Returns (staff_df, projects_df).
     """
-    staff_df    = pd.read_excel(staff_source)
+    staff_df = pd.read_excel(staff_source)
     projects_df = pd.read_excel(projects_source)
     return staff_df, projects_df
 
 
 # ---------------------------------------------------------------------------
-# 2. Month calendar helpers
+# 2. Calendar helpers  (kept mainly for compatibility with app)
 # ---------------------------------------------------------------------------
 
-WEEKDAY_MAP = {
-    "mon": "Monday", "tue": "Tuesday", "wed": "Wednesday",
-    "thu": "Thursday", "fri": "Friday", "sat": "Saturday", "sun": "Sunday",
-}
-FULL_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday",
-             "Friday", "Saturday", "Sunday"]
-
-
-def build_calendar(first_weekday: str, num_days: int) -> list[dict]:
+def build_calendar(first_weekday: str, num_days: int) -> List[dict]:
     """
-    Return a list of {day: int, weekday: str} dicts for every day of the month.
-    first_weekday must be a full name, e.g. 'Monday'.
+    Return a list of {"day": int, "weekday": str} for each day.
+    first_weekday must be a full name ("Monday", etc.).
     """
     start_idx = FULL_WEEK.index(first_weekday)
     return [
@@ -85,16 +79,13 @@ def build_calendar(first_weekday: str, num_days: int) -> list[dict]:
     ]
 
 
-def build_working_days(calendar: list[dict]) -> list[dict]:
-    """Filter calendar to Mon-Fri only."""
+def build_working_days(calendar: List[dict]) -> List[dict]:
+    """Filter calendar to Mon–Fri only."""
     return [c for c in calendar if c["weekday"] in DAY_NAMES]
 
 
-def ask_planning_info() -> tuple[str, int]:
-    """
-    Interactive CLI prompt for an arbitrary planning period.
-    Returns (first_weekday_full_name, n_days).
-    """
+def ask_planning_info() -> Tuple[str, int]:
+    """Interactive CLI prompt (kept for CLI compatibility)."""
     print("\n=== Planning Period Setup ===")
     while True:
         raw = input(
@@ -117,403 +108,456 @@ def ask_planning_info() -> tuple[str, int]:
 
 
 # ---------------------------------------------------------------------------
-# 3. Parameter extraction
+# 3. Parsing and project/worker structures
 # ---------------------------------------------------------------------------
 
-def parse_project_cell(cell) -> tuple[int, float]:
+def parse_project_cell(cell) -> Tuple[int, float]:
     """
     Project day cells are strings like '(1, 5.0)' or '(3, 1.5)'.
-    Returns (demand: int, duration: float).  Zero means not scheduled.
+    Returns (demand: int, duration_hours: float).
     """
+    if pd.isna(cell):
+        return 0, 0.0
     s = str(cell).strip()
-    if pd.isna(cell) or s in ("", "nan", "(0, 0.0)", "(0, nan)"):
+    if s in ("", "nan", "(0, 0.0)", "(0,0.0)", "(0, nan)"):
         return 0, 0.0
     try:
-        tup      = ast.literal_eval(s)
-        demand   = int(tup[0])
+        tup = ast.literal_eval(s)
+        demand = int(tup[0])
         duration = float(tup[1]) if not pd.isna(tup[1]) else 0.0
         return demand, duration
     except Exception:
         return 0, 0.0
 
 
-def build_project_list(projects_df: pd.DataFrame, working_days: list[dict]) -> list[dict]:
+def build_project_list(projects_df: pd.DataFrame) -> List[dict]:
     """
-    Returns a list of project dicts:
-      { name, type, demand, duration, occurs: {weekday: bool} }
+    Returns list of project dicts with per-day demand and duration:
 
-    demand and duration are taken as the max across all scheduled weekdays
-    (they should be consistent within a row; max is a safe fallback).
+    {
+      "name": str,
+      "type": str,
+      "demand_by_day": {day: int},
+      "hours_by_day": {day: float},
+      "weekly_hours": float,
+      "max_daily_demand": int,
+    }
     """
     projects = []
+
     for _, row in projects_df.iterrows():
         p_name = str(row["project_name"])
         p_type = str(row["project_type"])
 
-        occurs_on = {}
-        demand    = 0
-        duration  = 0.0
+        demand_by_day = {}
+        hours_by_day = {}
+        total_week_hours = 0.0
+        max_daily_demand = 0
 
         for day in DAY_NAMES:
-            occ, dur = parse_project_cell(row.get(day, "(0, 0.0)"))
-            if occ > 0:
-                occurs_on[day] = True
-                demand   = max(demand, occ)
-                duration = max(duration, dur)
-            else:
-                occurs_on[day] = False
-        monthly_occurrences = 0
+            demand, hours = parse_project_cell(row.get(day))
+            demand_by_day[day] = demand
+            hours_by_day[day] = hours
+            max_daily_demand = max(max_daily_demand, demand)
+            total_week_hours += demand * hours  # total worker-hours per week
 
-        for wd in working_days:
-            weekday = wd["weekday"]
-
-            if occurs_on.get(weekday, False):
-                monthly_occurrences += 1
-        if demand == 0:
+        if max_daily_demand == 0:
+            # project never occurs; skip
             continue
 
-        projects.append({
-            "name":     p_name,
-            "type":     p_type,
-            "demand":   demand,
-            "duration": duration,
-            "occurs":   occurs_on,
-            "monthly_occurrences": monthly_occurrences,
-        })
+        projects.append(
+            {
+                "name": p_name,
+                "type": p_type,
+                "demand_by_day": demand_by_day,
+                "hours_by_day": hours_by_day,
+                "weekly_hours": total_week_hours,
+                "max_daily_demand": max_daily_demand,
+            }
+        )
 
     return projects
 
 
-def build_worker_list(staff_df: pd.DataFrame) -> list[dict]:
+def build_worker_list(staff_df: pd.DataFrame) -> List[dict]:
     """
-    Returns a list of worker dicts.
-    Note: is_stagiaire column is no longer expected.
-    Zero-contract workers play the role previously assigned to stagiaires.
+    Returns list of worker dicts:
+
+    {
+      "id": int,
+      "contract_hours_week": float,
+      "is_permanent": int,
+      "is_dreammaker": int,
+      "avail_on": {day: 0/1},
+      "BSC": int,
+      "CC": int,
+      "Combiworld": int,
+      "MDT": int,
+    }
+
+    Note: contract is per week. Workers with 0 hours are non-permanent.
+    Duplicate IDs are kept as separate workers (based on row index).
     """
     workers = []
+
     for _, row in staff_df.iterrows():
-        not_avail = {day: int(row.get(NOT_COLS[day], 0) or 0) for day in DAY_NAMES}
-        avail_on  = {day: 1 - not_avail[day] for day in DAY_NAMES}
+        # Build availability
+        avail_on = {}
+        for day in DAY_NAMES:
+            col = NOT_COLS[day]
+            not_flag = int(row.get(col, 0) or 0)
+            avail_on[day] = 0 if not_flag == 1 else 1
 
-        contract_hours = float(row.get("Contract_hours_per_month", 0) or 0)
+        contract_hours_week = float(row.get("Contract_hours_per_week", 0) or 0)
 
-        workers.append({
-            "id":             int(row["ID"]),
-            "contract_hours": contract_hours,
-            "is_permanent":   1 if contract_hours > 0 else 0,  # permanent = has contract hours
-            "is_dreammaker":  int(row.get("dreammaker", 0) or 0),
-            "avail_on":       avail_on,
-            "BSC":            int(row.get("BSC", 0) or 0),
-            "CC":             int(row.get("CC", 0) or 0),
-            "Combiworld":     int(row.get("Combiworld", 0) or 0),
-            "MDT":            int(row.get("MDT", 0) or 0),
-        })
+        workers.append(
+            {
+                "id": int(row["ID"]),
+                "contract_hours_week": contract_hours_week,
+                "is_permanent": 1 if contract_hours_week > 0 else 0,
+                "is_dreammaker": int(row.get("dreammaker", 0) or 0),
+                "avail_on": avail_on,
+                "BSC": int(row.get("BSC", 0) or 0),
+                "CC": int(row.get("CC", 0) or 0),
+                "Combiworld": int(row.get("Combiworld", 0) or 0),
+                "MDT": int(row.get("MDT", 0) or 0),
+            }
+        )
     return workers
 
 
 # ---------------------------------------------------------------------------
-# 4. Derived parameter: AvailableProject[w][p]
+# 4. Qualification filter per project
 # ---------------------------------------------------------------------------
 
-def compute_available_projects(
-    workers: list[dict],
-    projects: list[dict],
-    working_days: list[dict],
-) -> list[list[int]]:
+def worker_can_do_project(w: dict, p: dict) -> bool:
     """
-    AvailableProject[w][p] = 1 iff worker w is available on every weekday
-    on which project p occurs within the given month's working days.
+    Simple qualification rule:
+      - If project_type contains 'BSC' → require BSC=1
+      - If project_type contains 'CC'  → require CC=1
+      - If project_type contains 'Combiworld' → require Combiworld=1
+      - If project_type contains 'MDT' → require MDT=1
     """
-    month_weekdays = {wd["weekday"] for wd in working_days}
-    avail = []
-    for w in workers:
-        row = []
-        for p in projects:
-            ok = all(
-                w["avail_on"][day]
-                for day, scheduled in p["occurs"].items()
-                if scheduled and day in month_weekdays
-            )
-            row.append(1 if ok else 0)
-        avail.append(row)
-    return avail
+    p_type = (p["type"] or "").lower()
+
+    # Basic assumptions based on your data
+    if "bsc" in p_type and w["BSC"] != 1:
+        return False
+    if "cc" in p_type and w["CC"] != 1:
+        return False
+    if "combiworld" in p_type and w["Combiworld"] != 1:
+        return False
+    if "mdt" in p_type and w["MDT"] != 1:
+        return False
+    return True
 
 
 # ---------------------------------------------------------------------------
-# 5. CP-SAT model
+# 5. CP-SAT model (new: X[w,p,day], weekly hours, slack)
 # ---------------------------------------------------------------------------
 
 def solve(
-    workers: list[dict],
-    projects: list[dict],
-    avail_project: list[list[int]],
-    working_days: list[dict],
-) -> tuple[str, dict, object]:
+    workers: List[dict],
+    projects: List[dict],
+) -> Tuple[str, Dict[Tuple[int, int, str], int],
+           Dict[Tuple[int, int, str], int],
+           cp_model.CpSolver]:
     """
-    Build and solve the CP-SAT model.
+    Build and solve CP-SAT.
 
-    Unary constraints (preprocessing / domain reduction):
-      A. Availability Filtering  — X[w,p] = 0 if AvailableProject[w,p] = 0
-      B. Short-Shift Staffing    — X[w,p] = 0 if Duration_p < 1.5 AND ContractHours_w > 0
+    Variables:
+      X[w,p,d] ∈ {0,1}  -> worker w covers project p on day d
+      Y[w,p]   ∈ {0,1}  -> worker w belongs to project p core team (for continuity)
+      shortage[p,d] ∈ {0..demand[p,d]}  -> unmet demand on that project-day
 
-    Hard constraints:
-      A. Project Demand          — Σ_w X[w,p] = Demand_p
-      B. 4-Eye Principle         — Σ_w X[w,p]·IsDreammaker_w ≥ 1  (Combiworld/MDT)
-      C. One Project per Day     — Σ_p Occurs[p,d]·X[w,p] ≤ 1
+    Constraints (main ones):
+      - Availability: X[w,p,d] = 0 if not available that day
+      - Qualification: X[w,p,d] = 0 if worker not qualified
+      - One project per worker per day
+      - Project demand per day with slack: sum_w X[w,p,d] + shortage[p,d] = demand[p,d]
+      - 4-eye principle for Combiworld/MDT: per project (any day with demand)
+      - Weekly hours per worker: sum_{p,d} X[w,p,d] * hours[p,d] <= min(40, contract_hours_week)
+      - For projects with weekly_hours <= 40: continuity via Y[w,p]:
+          * X[w,p,d] <= Y[w,p]
+          * sum_w Y[w,p] = max_daily_demand(p)
 
     Objective:
-      Minimize Σ_w |ContractHours_w - Σ_p Duration_p·X[w,p]|
-      (absolute deviation between contracted and assigned hours)
-
-    Returns (status_str, assignments {(w_idx, p_idx): 0/1}, solver).
+      Minimize  BigM * total_shortage  + sum_w |AssignedHours_w - ContractHours_w|
     """
     num_w = len(workers)
     num_p = len(projects)
+
     model = cp_model.CpModel()
 
-    # ------------------------------------------------------------------
-    # Decision variables X[w, p] ∈ {0, 1}
-    # ------------------------------------------------------------------
-    X = {
-        (w, p): model.NewBoolVar(f"X_w{w}_p{p}")
-        for w in range(num_w)
-        for p in range(num_p)
-    }
-
-    # ------------------------------------------------------------------
-    # Unary Constraint A: Availability Filtering
-    # Fix X[w,p] = 0 whenever worker w cannot cover all days of project p.
-    # ------------------------------------------------------------------
+    # ------------------------------
+    # Decision variables
+    # ------------------------------
+    # X[w,p,day]
+    X = {}
     for w in range(num_w):
         for p in range(num_p):
-            if avail_project[w][p] == 0:
-                model.Add(X[w, p] == 0)
+            for day in DAY_NAMES:
+                X[w, p, day] = model.NewBoolVar(f"X_w{w}_p{p}_{day}")
 
-    # ------------------------------------------------------------------
-    # Unary Constraint B: Short-Shift Staffing
-    # Duration_p < 1.5 h AND ContractHours_w > 0  =>  X[w,p] = 0
-    # (Only zero-contract / non-permanent workers may take short shifts.)
-    # ------------------------------------------------------------------
-    for p_idx, p in enumerate(projects):
-        if p["duration"] < 1.5:
-            for w_idx, w in enumerate(workers):
-                if w["is_permanent"] == 1:
-                    model.Add(X[w_idx, p_idx] == 0)
+    # Y[w,p] for continuity (for projects <= 40h/week)
+    Y = {}
+    for w in range(num_w):
+        for p in range(num_p):
+            Y[w, p] = model.NewBoolVar(f"Y_w{w}_p{p}")
 
-    # ------------------------------------------------------------------
-    # Hard Constraint A: Project Demand
-    # Σ_w X[w,p] = Demand_p   ∀ p
-    # ------------------------------------------------------------------
+    # Shortage per project-day
     shortage = {}
-
     for p_idx, p in enumerate(projects):
+        for day in DAY_NAMES:
+            demand = p["demand_by_day"][day]
+            if demand > 0:
+                shortage[p_idx, day] = model.NewIntVar(
+                    0, demand, f"shortage_p{p_idx}_{day}"
+                )
 
-        shortage[p_idx] = model.NewIntVar(
-            0,
-            p["demand"],
-            f"shortage_p{p_idx}"
-        )
+    # ------------------------------
+    # Constraints
+    # ------------------------------
 
-        model.Add(
-            sum(X[w, p_idx] for w in range(num_w))
-            + shortage[p_idx]
-            == p["demand"]
-        )
+    # 1) Availability & qualification
+    for w_idx, w in enumerate(workers):
+        for p_idx, p in enumerate(projects):
+            can_do = worker_can_do_project(w, p)
+            for day in DAY_NAMES:
+                if w["avail_on"][day] == 0 or not can_do:
+                    # not available or not qualified
+                    model.Add(X[w_idx, p_idx, day] == 0)
 
-    # ------------------------------------------------------------------
-    # Hard Constraint B: 4-Eye Principle (Combiworld / MDT)
-    # Σ_w X[w,p]·IsDreammaker_w ≥ 1   ∀ p of type Combiworld or MDT
-    # ------------------------------------------------------------------
+    # 2) One project per worker per day
+    for w in range(num_w):
+        for day in DAY_NAMES:
+            day_projects = [
+                p_idx for p_idx, p in enumerate(projects)
+                if p["demand_by_day"][day] > 0
+            ]
+            if day_projects:
+                model.Add(
+                    sum(X[w, p_idx, day] for p_idx in day_projects) <= 1
+                )
+
+    # 3) Project demand per day (with shortage)
+    for p_idx, p in enumerate(projects):
+        for day in DAY_NAMES:
+            demand = p["demand_by_day"][day]
+            if demand > 0:
+                model.Add(
+                    sum(X[w, p_idx, day] for w in range(num_w))
+                    + shortage[p_idx, day]
+                    == demand
+                )
+
+    # 4) 4-eye principle for Combiworld/MDT:
+    # at least one dreammaker assigned at some day where demand>0
     for p_idx, p in enumerate(projects):
         if p["type"] in COMBIWORLD_MDT_TYPES:
+            # Build a list of X for all days (only where demand>0)
+            dreammaker_terms = []
+            for day in DAY_NAMES:
+                if p["demand_by_day"][day] > 0:
+                    for w_idx, w in enumerate(workers):
+                        if w["is_dreammaker"] == 1:
+                            dreammaker_terms.append(X[w_idx, p_idx, day])
+            if dreammaker_terms:
+                model.Add(sum(dreammaker_terms) >= 1)
+
+    # 5) Continuity for projects with total weekly hours <= 40
+    for p_idx, p in enumerate(projects):
+        if p["weekly_hours"] <= 40.0:
+            # X[w,p,d] <= Y[w,p] and sum_w Y[w,p] = max_daily_demand(p)
+            for w in range(num_w):
+                for day in DAY_NAMES:
+                    if p["demand_by_day"][day] > 0:
+                        model.Add(X[w, p_idx, day] <= Y[w, p_idx])
+
             model.Add(
-                sum(X[w, p_idx] * workers[w]["is_dreammaker"]
-                    for w in range(num_w)) >= 1
+                sum(Y[w, p_idx] for w in range(num_w)) == p["max_daily_demand"]
             )
+        else:
+            # For projects >40h/week, Y[w,p] is not used to constrain X.
+            for w in range(num_w):
+                model.Add(Y[w, p_idx] == 0)
 
-    # ------------------------------------------------------------------
-    # Hard Constraint C: One Project per Day per Worker
-    # Σ_p Occurs[p,d]·X[w,p] ≤ 1   ∀ w, ∀ d
-    # ------------------------------------------------------------------
-    month_weekdays = {wd["weekday"] for wd in working_days}
-    for day in DAY_NAMES:
-        if day not in month_weekdays:
-            continue
-        day_projects = [p_idx for p_idx, p in enumerate(projects)
-                        if p["occurs"].get(day, False)]
-        if not day_projects:
-            continue
-        for w in range(num_w):
-            model.Add(sum(X[w, p_idx] for p_idx in day_projects) <= 1)
-
-    # ------------------------------------------------------------------
-    # Objective: Minimize Σ_w |ContractHours_w - H_w|
-    # where H_w = Σ_p Duration_p · X[w,p]
-    #
-    # CP-SAT requires integer arithmetic, so scale hours by SCALE=100.
-    # |a - b|  is linearised with an auxiliary variable dev_w ≥ 0 via:
-    #   dev_w ≥  (contract_w - H_w)
-    #   dev_w ≥ -(contract_w - H_w)
-    # Then minimize Σ_w dev_w.
-    # ------------------------------------------------------------------
-    SCALE = 100
+    # 6) Weekly hours per worker:
+    #    AssignedHours_w = sum_{p,d} X[w,p,d] * hours[p,d]
+    #    AssignedHours_w <= min(40, contract_hours_week)
+    SCALE = 100  # integer scaling for hours
     deviation_vars = []
+    total_shortage_vars = []
+
+    for p_idx, p in enumerate(projects):
+        for day in DAY_NAMES:
+            if p["demand_by_day"][day] > 0:
+                total_shortage_vars.append(shortage[p_idx, day])
 
     for w_idx, w in enumerate(workers):
-        contract_scaled = int(round(w["contract_hours"] * SCALE))
+        contract = w["contract_hours_week"]
+        max_week_hours = min(40.0, contract if contract > 0 else 40.0)
 
-        # H_w in scaled integer units
-        H_w = sum(
-            X[w_idx,p_idx]
-            * int(round(
-                p["duration"]
-                * p["monthly_occurrences"]
-                * SCALE
-            ))
-            for p_idx,p in enumerate(projects)
-        )
+        # H_w scaled
+        terms = []
+        for p_idx, p in enumerate(projects):
+            for day in DAY_NAMES:
+                hours = p["hours_by_day"][day]
+                if hours > 0 and p["demand_by_day"][day] > 0:
+                    coef = int(round(hours * SCALE))
+                    terms.append((X[w_idx, p_idx, day], coef))
 
-        # Upper bound for deviation: max possible assigned hours (all projects)
-        max_hours_scaled = sum(
-            int(round(
-                p["duration"]
-                * p["monthly_occurrences"]
-                * SCALE
-            ))
-            for p in projects
-        )
-        max_dev = max(contract_scaled, max_hours_scaled)
+        if terms:
+            H_w = model.NewIntVar(0, int(round(max_week_hours * SCALE * 2)), f"H_w{w_idx}")
+            model.Add(H_w == sum(var * coef for (var, coef) in terms))
+        else:
+            H_w = model.NewIntVar(0, 0, f"H_w{w_idx}")
+            model.Add(H_w == 0)
 
+        # Hard cap on weekly hours
+        model.Add(H_w <= int(round(max_week_hours * SCALE)))
+
+        # Deviation from contract
+        contract_scaled = int(round(contract * SCALE))
+        max_dev = int(round(max(40.0, contract) * SCALE)) * 2
         dev = model.NewIntVar(0, max_dev, f"dev_w{w_idx}")
         model.Add(dev >= contract_scaled - H_w)
         model.Add(dev >= H_w - contract_scaled)
         deviation_vars.append(dev)
 
+    # ------------------------------
+    # Objective
+    # ------------------------------
     BIG_M = 100000
-
     model.Minimize(
-        BIG_M * sum(shortage.values())
+        BIG_M * sum(total_shortage_vars)
         + sum(deviation_vars)
     )
 
-    # ------------------------------------------------------------------
+    # ------------------------------
     # Solve
-    # ------------------------------------------------------------------
+    # ------------------------------
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = 120.0
     solver.parameters.log_search_progress = False
 
-    status     = solver.Solve(model)
+    status = solver.Solve(model)
     status_str = solver.StatusName(status)
 
     assignments = {}
-    if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-        for w in range(num_w):
-            for p in range(num_p):
-                assignments[w, p] = solver.Value(X[w, p])
-
     shortage_results = {}
 
     if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+        for w in range(num_w):
+            for p in range(num_p):
+                for day in DAY_NAMES:
+                    assignments[w, p, day] = solver.Value(X[w, p, day])
+        for key in shortage:
+            shortage_results[key] = solver.Value(shortage[key])
 
-        for p_idx in range(num_p):
-            shortage_results[p_idx] = solver.Value(
-                shortage[p_idx]
-            )
-
-    return (
-        status_str,
-        assignments,
-        shortage_results,
-        solver
-    )
+    return status_str, assignments, shortage_results, solver
 
 
 # ---------------------------------------------------------------------------
-# 6. Output table
+# 6. Output tables
 # ---------------------------------------------------------------------------
 
 def build_output_table(
-    workers: list[dict],
-    projects: list[dict],
-    assignments: dict,
+    workers: List[dict],
+    projects: List[dict],
+    assignments: Dict[Tuple[int, int, str], int],
 ) -> pd.DataFrame:
     """
-    Returns a DataFrame with one row per worker:
-      Worker_ID | Contract_hrs_per_month | Assigned_projects | Assigned_hours
-      | Deviation_from_contract | Is_permanent
+    Per-worker summary table:
+      Worker_ID
+      Contract_hrs_per_week
+      Assigned_projects (list, with per-day detail)
+      Assigned_hours_week
+      Deviation_from_contract (= assigned - contract, can be negative)
+      Is_permanent
     """
     rows = []
+
     for w_idx, w in enumerate(workers):
-        assigned_projects = []
-        total_hours = 0.0
+        assigned_projects_desc = []
+        total_week_hours = 0.0
 
+        # Collect per project and day
         for p_idx, p in enumerate(projects):
-            if assignments.get((w_idx, p_idx), 0) == 1:
-
-                project_month_hours = (
-                    p["duration"]
-                    * p["monthly_occurrences"]
+            per_day_strs = []
+            proj_total = 0.0
+            for day in DAY_NAMES:
+                if assignments.get((w_idx, p_idx, day), 0) == 1:
+                    h = p["hours_by_day"][day]
+                    proj_total += h
+                    per_day_strs.append(f"{day} ({h}h)")
+            if per_day_strs:
+                assigned_projects_desc.append(
+                    f"{p['name']} [{', '.join(per_day_strs)}] "
+                    f"= {proj_total:.1f}h/week"
                 )
+                total_week_hours += proj_total
 
-                assigned_projects.append(
-                    f"{p['name']} "
-                    f"({p['duration']}h × "
-                    f"{p['monthly_occurrences']} occurrences = "
-                    f"{project_month_hours:.1f}h/month)"
-                )
+        deviation = round(total_week_hours - w["contract_hours_week"], 2)
 
-                total_hours += project_month_hours
-
-        deviation = round(w["contract_hours"] - total_hours, 2)
-
-        rows.append({
-            "Worker_ID":           w["id"],
-            "Is_permanent":        "Yes" if w["is_permanent"] else "No (0h contract)",
-            "Contract_hrs_per_month": w["contract_hours"],
-            "Assigned_projects":   "; ".join(assigned_projects) if assigned_projects else "—",
-            "Assigned_hours_month":      round(total_hours, 2),
-            "Deviation_from_contract":     deviation,   # negative = over-assigned
-        })
+        rows.append(
+            {
+                "Worker_ID": w["id"],
+                "Is_permanent": "Yes" if w["is_permanent"] else "No (0h contract)",
+                "Contract_hrs_per_week": w["contract_hours_week"],
+                "Assigned_projects": "; ".join(assigned_projects_desc) if assigned_projects_desc else "—",
+                "Assigned_hours_week": round(total_week_hours, 2),
+                "Deviation_from_contract": deviation,  # negative = under-assigned
+            }
+        )
 
     return pd.DataFrame(rows)
-# ---------------------------------------------------------------------------
-# 6b. Shortage output table
-# ---------------------------------------------------------------------------
+
 
 def build_shortage_table(
-    projects: list[dict],
-    shortages: dict,
+    projects: List[dict],
+    shortages: Dict[Tuple[int, int, str], int],
 ) -> pd.DataFrame:
-
+    """
+    Project-day shortage table:
+      Project
+      Project_Type
+      Day
+      Demand
+      Filled
+      Missing
+      Hours_per_worker
+      Unfilled_worker_hours
+    """
     rows = []
 
     for p_idx, p in enumerate(projects):
-
-        shortage = shortages.get(p_idx, 0)
-
-        if shortage > 0:
-
-            days = ", ".join(
-                day
-                for day, occurs in p["occurs"].items()
-                if occurs
-            )
-
-            rows.append({
-                "Project": p["name"],
-                "Project_Type": p["type"],
-                "Occurs_On": days,
-                "Demand": p["demand"],
-                "Unfilled_Positions": shortage,
-                "Monthly_Unfilled_Hours":shortage* p["duration"]* p["monthly_occurrences"],
-                "Hours_Per_Assignment": p["duration"],
-            })
+        for day in DAY_NAMES:
+            demand = p["demand_by_day"][day]
+            if demand <= 0:
+                continue
+            missing = shortages.get((p_idx, day), 0)
+            if missing > 0:
+                hours = p["hours_by_day"][day]
+                filled = demand - missing
+                rows.append(
+                    {
+                        "Project": p["name"],
+                        "Project_Type": p["type"],
+                        "Day": day,
+                        "Demand": demand,
+                        "Filled": filled,
+                        "Missing": missing,
+                        "Hours_per_worker": hours,
+                        "Unfilled_worker_hours": missing * hours,
+                    }
+                )
 
     return pd.DataFrame(rows)
 
+
 # ---------------------------------------------------------------------------
-# 7. Public pipeline function (called by Streamlit app or CLI)
+# 7. Public pipeline function (used by Streamlit + CLI)
 # ---------------------------------------------------------------------------
 
 def run_pipeline(
@@ -522,75 +566,43 @@ def run_pipeline(
     first_weekday: str,
     num_days: int,
     output_path: str | None = None,
-) -> tuple[pd.DataFrame, dict, str]:
+):
     """
-    Full pipeline: load → build params → solve → build output table.
+    Full pipeline: load → build params → solve → build output tables.
 
-    Parameters
-    ----------
-    staff_source    : file path or file-like object for staff Excel
-    projects_source : file path or file-like object for projects Excel
-    first_weekday   : full weekday name of the 1st of the month, e.g. 'Monday'
-    num_days        : total days in the month (28-31)
-    output_path     : if given, save result table as Excel file here
-
-    Returns
-    -------
-    result_df  : assignment results DataFrame
-    summary    : dict with aggregate stats
-    status_str : CP-SAT solver status string
+    Note: first_weekday & num_days are kept for interface compatibility,
+    but the model is built for a single generic week (Mon–Fri).
     """
     staff_df, projects_df = load_data(staff_source, projects_source)
 
-    calendar     = build_calendar(first_weekday, num_days)
-    working_days = build_working_days(calendar)
+    workers = build_worker_list(staff_df)
+    projects = build_project_list(projects_df)
 
-    workers  = build_worker_list(staff_df)
-    projects = build_project_list(projects_df, working_days)
-
-    # Keep only projects active in this month
-    month_weekdays = {wd["weekday"] for wd in working_days}
-    projects = [
-        p for p in projects
-        if any(p["occurs"].get(d, False) for d in month_weekdays)
-    ]
-
-    avail_project = compute_available_projects(workers, projects, working_days)
-    status_str, assignments, shortages, solver = solve(workers, projects, avail_project, working_days)
+    status_str, assignments, shortages, solver = solve(workers, projects)
 
     result_df = build_output_table(workers, projects, assignments)
-    shortage_df = build_shortage_table(
-        projects,
-        shortages,)
+    shortage_df = build_shortage_table(projects, shortages)
 
     if output_path:
         with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
-            result_df.to_excel(
-                writer,
-                sheet_name="Assignments",
-                index=False
-            )
+            result_df.to_excel(writer, sheet_name="Assignments", index=False)
+            shortage_df.to_excel(writer, sheet_name="Open_Shifts", index=False)
 
-            shortage_df.to_excel(
-                writer,
-                sheet_name="Open_Shifts",
-                index=False
-            )
+    # Aggregate stats (permanent only)
+    permanent = result_df[result_df["Is_permanent"] == "Yes"]
+    total_contr = permanent["Contract_hrs_per_week"].sum()
+    total_asgnd = permanent["Assigned_hours_week"].sum()
+    total_dev = permanent["Deviation_from_contract"].abs().sum()
 
-    # Aggregate stats
-    permanent   = result_df[result_df["Is_permanent"] == "Yes"]
-    total_contr = permanent["Contract_hrs_per_month"].sum()
-    total_asgnd = permanent["Assigned_hours_month"].sum()
-    total_dev   = permanent["Deviation_from_contract"].abs().sum()
     summary = {
-        "n_workers":           len(workers),
-        "n_projects":          len(projects),
-        "n_working_days":      len(working_days),
-        "solver_status":       status_str,
-        "permanent_contract_hrs":  round(total_contr, 2),
-        "permanent_assigned_hrs":  round(total_asgnd, 2),
-        "total_abs_deviation":     round(total_dev, 2),
-        "total_assigned_hrs":      round(result_df["Assigned_hours_month"].sum(), 2),
+        "n_workers": len(workers),
+        "n_projects": len(projects),
+        "n_working_days": 5,  # Mon–Fri
+        "solver_status": status_str,
+        "permanent_contract_hrs": round(total_contr, 2),
+        "permanent_assigned_hrs": round(total_asgnd, 2),
+        "total_abs_deviation": round(total_dev, 2),
+        "total_assigned_hrs": round(result_df["Assigned_hours_week"].sum(), 2),
     }
 
     return result_df, shortage_df, summary, status_str
@@ -602,18 +614,18 @@ def run_pipeline(
 
 def main():
     parser = argparse.ArgumentParser(description="Workforce Assignment CP Solver")
-    parser.add_argument("--staff",    default=DEFAULT_STAFF)
+    parser.add_argument("--staff", default=DEFAULT_STAFF)
     parser.add_argument("--projects", default=DEFAULT_PROJECTS)
-    parser.add_argument("--output",   default="assignment_results.xlsx")
+    parser.add_argument("--output", default="assignment_results.xlsx")
     parser.add_argument(
-        "--no-interactive", action="store_true",
-        help="Skip month prompt; use a default 20-day Mon-Fri month for testing",
+        "--no-interactive",
+        action="store_true",
+        help="Skip month prompt; planning params are ignored by the weekly model anyway.",
     )
     args = parser.parse_args()
 
-    print(f"\nLoading staff data from:    {args.staff}")
-    print(f"Loading project data from:  {args.projects}")
-
+    print(f"\nLoading staff data from: {args.staff}")
+    print(f"Loading project data from: {args.projects}")
 
     if args.no_interactive:
         first_weekday = "Monday"
@@ -629,7 +641,7 @@ def main():
         output_path=args.output,
     )
 
-    print(f"\n  Solver status:   {status_str}")
+    print(f"\nSolver status:   {status_str}")
     if status_str not in ("OPTIMAL", "FEASIBLE"):
         print("\n⚠  No feasible solution found. Check demand vs worker availability.")
         sys.exit(1)
@@ -638,17 +650,21 @@ def main():
     print(f"  Active projects: {summary['n_projects']}")
     print(f"  Working days:    {summary['n_working_days']}")
 
-    print("\n=== Assignment Results ===")
-    pd.set_option("display.max_colwidth", 80)
+    print("\n=== Assignment Results (weekly) ===")
+    pd.set_option("display.max_colwidth", 120)
     pd.set_option("display.width", 220)
     print(result_df.to_string(index=False))
 
-    print(f"\n--- Summary (permanent staff) ---")
-    print(f"  Total contract hrs/month:       {summary['permanent_contract_hrs']:.1f}")
-    print(f"  Total assigned hrs:           {summary['permanent_assigned_hrs']:.2f}")
-    print(f"  Total absolute deviation:     {summary['total_abs_deviation']:.2f}")
+    print("\n--- Summary (permanent staff, weekly) ---")
+    print(f"  Total contract hrs/week:  {summary['permanent_contract_hrs']:.1f}")
+    print(f"  Total assigned hrs/week:  {summary['permanent_assigned_hrs']:.1f}")
+    print(f"  Total absolute deviation: {summary['total_abs_deviation']:.1f}")
+
     print(f"\nResults saved to: {args.output}")
 
 
 if __name__ == "__main__":
     main()
+```
+
+---

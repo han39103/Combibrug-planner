@@ -649,6 +649,16 @@ def run_pipeline(staff_source, projects_source, first_weekday, num_days, output_
     total_asgnd = permanent["Assigned_hours_week"].sum()
     total_dev = permanent["Deviation_from_contract"].abs().sum()
 
+    non_permanent = result_df[
+        result_df["Is_permanent"] == "No (0h contract)"
+    ]
+    
+    non_perm_assigned = non_permanent["Assigned_hours_week"].sum()
+    non_perm_workers_used = (
+        non_permanent["Assigned_hours_week"] > 0
+    ).sum()
+
+    
     summary = {
         "n_workers": len(workers),
         "n_projects": len(projects),
@@ -658,6 +668,9 @@ def run_pipeline(staff_source, projects_source, first_weekday, num_days, output_
         "permanent_assigned_hrs": round(total_asgnd, 2),
         "total_abs_deviation": round(total_dev, 2),
         "total_assigned_hrs": round(result_df["Assigned_hours_week"].sum(), 2),
+        "non_perm_assigned_hrs": round(non_perm_assigned, 2),
+        "non_perm_workers_used": int(non_perm_workers_used),
+
     }
 
     return result_df, shortage_df, summary, status_str

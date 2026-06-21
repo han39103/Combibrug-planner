@@ -131,54 +131,120 @@ def parse_project_cell(cell) -> Tuple[int, float]:
 
 def build_project_list(projects_df: pd.DataFrame) -> List[dict]:
     """
-    Returns list of project dicts with per-day demand and duration:
+    Interpretation A:
 
-    {
-      "name": str,
-      "type": str,
-      "demand_by_day": {day: int},
-      "hours_by_day": {day: float},
-      "weekly_hours": float,
-      "max_daily_demand": int,
-    }
+    Projects <= 40h/week:
+        keep as-is
+
+    Projects > 40h/week:
+        create:
+            - CORE project
+            - one subproject for every day whose demand
+              is below max_daily_demand
+
+    Example:
+
+        Mon 4
+        Tue 4
+        Wed 1
+        Fri 1
+
+    becomes
+
+        CORE:
+            Mon 4
+            Tue 4
+
+        WED:
+            Wed 1
+
+        FRI:
+            Fri 1
     """
-    projects = []
 
-    for _, row in projects_df.iterrows():
-        p_name = str(row["project_name"])
-        p_type = str(row["project_type"])
+    result = []
 
-        demand_by_day = {}
-        hours_by_day = {}
-        total_week_hours = 0.0
-        max_daily_demand = 0
+    for p in projects:
 
-        for day in DAY_NAMES:
-            demand, hours = parse_project_cell(row.get(day))
-            demand_by_day[day] = demand
-            hours_by_day[day] = hours
-            max_daily_demand = max(max_daily_demand, demand)
-            total_week_hours += demand * hours  # total worker-hours per week
-
-        if max_daily_demand == 0:
-            # project never occurs; skip
+        if p["weekly_hours"] <= 40:
+            result.append(p)
             continue
 
-        projects.append(
-            {
-                "name": p_name,
-                "type": p_type,
-                "demand_by_day": demand_by_day,
-                "hours_by_day": hours_by_day,
-                "weekly_hours": total_week_hours,
-                "max_daily_demand": max_daily_demand,
-            }
-        )
+        max_demand = p["max_daily_demand"]
 
-    return projects
+        core_demands = {}
+        core_hours = {}
+
+        for day in DAY_NAMES:
+
+            demand = p["demand_by_day"][day]
+            hours = p["hours_by_day"][day]
+
+            if demand == max_demand:
+                core_demands[day] = demand
+                core_hours[day] = hours
+            else:
+                core_demands[day] = 0
+                core_hours[day] = 0.0
+
+        core_project = {
+            "name": p["name"] + "_CORE",
+            "type": p["type"],
+            "demand_by_day": core_demands,
+            "hours_by_day": core_hours,
+            "weekly_hours": sum(
+                core_demands[d] * core_hours[d]
+                for d in DAY_NAMES
+            ),
+            "max_daily_demand": max_demand,
+        }
+
+        result.append(core_project)
+
+        # create subprojects for smaller-demand days
+
+        for day in DAY_NAMES:
+
+            demand = p["demand_by_day"][day]
+
+            if demand == 0:
+                continue
+
+            if demand == max_demand:
+                continue
+
+            sub_demands = {
+                d: 0 for d in DAY_NAMES
+            }
+
+            sub_hours = {
+                d: 0.0 for d in DAY_NAMES
+            }
+
+            sub_demands[day] = demand
+            sub_hours[day] = p["hours_by_day"][day]
+
+            sub_project = {
+                "name": f"{p['name']}_{day}",
+                "type": p["type"],
+                "demand_by_day": sub_demands,
+                "hours_by_day": sub_hours,
+                "weekly_hours":
+                    demand * p["hours_by_day"][day],
+                "max_daily_demand": demand,
+            }
+
+            result.append(sub_project)
+
+    return result
 
 
 def build_worker_list(staff_df: pd.DataFrame) -> List[dict]:
+    staff_df = staff_df.drop_duplicates(
+        subset=["ID"],
+        keep="first"
+    )
+    workers = []
     """
     Returns list of worker dicts:
 
@@ -237,10 +303,10 @@ def worker_can_do_project(w: dict, p: dict) -> bool:
       - If project_type contains 'Combiworld' → require Combiworld=1
       - If project_type contains 'MDT' → require MDT=1
     """
-    p_type = (p["type"] or "").lower()
+    p_type = str(p["type"]).upper()
 
     # Basic assumptions based on your data
-    if "bsc" in p_type and w["BSC"] != 1:
+    if "BSC" in p_type and w["BSC"] != 1:
         return False
     if "cc" in p_type and w["CC"] != 1:
         return False
@@ -352,14 +418,19 @@ def solve(
     for p_idx, p in enumerate(projects):
         if p["type"] in COMBIWORLD_MDT_TYPES:
             # Build a list of X for all days (only where demand>0)
-            dreammaker_terms = []
             for day in DAY_NAMES:
-                if p["demand_by_day"][day] > 0:
-                    for w_idx, w in enumerate(workers):
-                        if w["is_dreammaker"] == 1:
-                            dreammaker_terms.append(X[w_idx, p_idx, day])
-            if dreammaker_terms:
-                model.Add(sum(dreammaker_terms) >= 1)
+        
+            if p["demand_by_day"][day] <= 0:
+                continue
+        
+            model.Add(
+                sum(
+                    X[w_idx, p_idx, day]
+                    for w_idx, w in enumerate(workers)
+                    if w["is_dreammaker"] == 1
+                )
+                >= 1
+            )
 
     # 5) Continuity for projects with total weekly hours <= 40
     for p_idx, p in enumerate(projects):
@@ -392,7 +463,12 @@ def solve(
 
     for w_idx, w in enumerate(workers):
         contract = w["contract_hours_week"]
-        max_week_hours = min(40.0, contract if contract > 0 else 40.0)
+        
+        # Contract is only used in objective.
+        # Workers may exceed contract hours.
+        # We only impose a generic safety cap.
+        
+        MAX_WORKER_HOURS = 40.0
 
         # H_w scaled
         terms = []
@@ -411,7 +487,7 @@ def solve(
             model.Add(H_w == 0)
 
         # Hard cap on weekly hours
-        model.Add(H_w <= int(round(max_week_hours * SCALE)))
+        model.Add(H_w <= int(round(MAX_WORKER_HOURS * SCALE)))
 
         # Deviation from contract
         contract_scaled = int(round(contract * SCALE))
@@ -573,6 +649,7 @@ def run_pipeline(
 
     workers = build_worker_list(staff_df)
     projects = build_project_list(projects_df)
+    projects = split_large_projects(projects)
 
     status_str, assignments, shortages, solver = solve(workers, projects)
 

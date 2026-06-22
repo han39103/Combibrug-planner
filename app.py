@@ -81,7 +81,7 @@ st.markdown(
 st.markdown("""
 <div style="
     background-color: rgba(255,255,255,0.85);
-    padding: 20px;
+    padding: 10px;
     border-radius: 15px;
     text-align: center;
     margin-bottom: 20px;

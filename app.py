@@ -50,7 +50,7 @@ st.markdown("""
 <style>
 div[data-testid="stVerticalBlock"] {
     background-color: rgba(255,255,255,0.8);
-    padding: 10px;
+    padding: 2px;
     border-radius: 12px;
 }
 </style>

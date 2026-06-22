@@ -57,13 +57,13 @@ div[data-testid="stVerticalBlock"] {
 """, unsafe_allow_html=True)
 
 add_bg_image()
-st.markdown(
-    """
-    <h1 style='text-align:center;'>
-    </h1>
-    """,
-    unsafe_allow_html=True
-)
+st.markdown("""
+<style>
+.block-container {
+    padding-top: 0.5rem;
+}
+</style>
+""", unsafe_allow_html=True)
 
 
 with open("assets/Combibrug logo.png", "rb") as f:

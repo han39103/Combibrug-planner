@@ -111,7 +111,7 @@ with st.sidebar:
     projects_file = st.file_uploader("Projects file (.xlsx)", type=["xlsx"])
 
     st.divider()
-    st.header("Planning Period (for display only)")
+    st.header("Planning Period")
     weekday_options = ["Monday", "Tuesday", "Wednesday", "Thursday",
                        "Friday", "Saturday", "Sunday"]
     first_weekday = st.selectbox(

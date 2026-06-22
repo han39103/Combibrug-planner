@@ -38,22 +38,14 @@ def add_bg_image():
 st.set_page_config(page_title="Workforce Assignment Solver", layout="wide")
 
 st.markdown("""
-<div style="
-    background-color: rgba(255,255,255,0.92);
-    padding: 25px;
-    border-radius: 15px;
-    text-align: center;
-    margin-bottom: 20px;
-">
-    <h1 style="color:#333333;">
-        Workforce Assignment CP Solver
-    </h1>
-    <p style="color:#555555;">
-        Constraint Programming model — OR-Tools CP-SAT
-    </p>
-</div>
+<style>
+div[data-testid="stVerticalBlock"] {
+    background-color: rgba(255,255,255,0.88);
+    padding: 15px;
+    border-radius: 12px;
+}
+</style>
 """, unsafe_allow_html=True)
-
 
 col1, col2, col3 = st.columns([1,2,1])
 
@@ -64,6 +56,8 @@ with col2:
         "assets/Combibrug logo.png",
         width=250)
 
+st.title("📋 Workforce Assignment CP Solver")
+st.caption("Constraint Programming model — OR-Tools CP-SAT (weekly model)")
 
 
 

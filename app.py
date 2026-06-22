@@ -81,19 +81,20 @@ st.markdown(
 )
 
 st.markdown(
-    f"""
-    <div style="
-        background-color: rgba(255,255,255,0.90);
-        padding-top: 15px;
-        padding-bottom: 25px;
-        border-radius: 15px;
-        text-align: center;
-        margin-bottom: 20px;
-    ">
-        <img src="data:image/png;base64,{logo_data}" width="280">
-        <h2>Workforce Assignment CP Solver</h2>
-        <p>Constraint Programming model — OR-Tools CP-SAT</p>
-    </div>
+    """
+    <div style='height:10px'></div>
+    """,
+    unsafe_allow_html=True
+)
+
+st.image(
+    "assets/Combibrug logo.png",
+    width=280
+)
+
+st.markdown(
+    """
+    <div style='height:30px'></div>
     """,
     unsafe_allow_html=True
 )

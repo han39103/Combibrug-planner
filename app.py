@@ -41,7 +41,7 @@ st.set_page_config(page_title="Workforce Assignment Solver", layout="wide")
 st.markdown("""
 <style>
 .block-container {
-    padding-top: 0.5rem;
+    padding-top: 0rem;
 }
 </style>
 """, unsafe_allow_html=True)

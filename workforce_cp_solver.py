@@ -630,6 +630,7 @@ def run_pipeline(staff_source, projects_source, first_weekday, num_days, output_
   #  but the model is built for a single generic week (Mon–Fri).
 
     workers = build_worker_list(staff_df)
+    projects = build_project_list(projects_df)
     projects = split_large_projects(projects)
 
     status_str, assignments, shortages, solver = solve(workers, projects)

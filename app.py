@@ -37,6 +37,15 @@ def add_bg_image():
     )
 st.set_page_config(page_title="Workforce Assignment Solver", layout="wide")
 
+#adjust logo
+st.markdown("""
+<style>
+.block-container {
+    padding-top: 1rem;
+}
+</style>
+""", unsafe_allow_html=True)
+
 st.markdown("""
 <style>
 div[data-testid="stVerticalBlock"] {

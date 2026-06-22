@@ -61,6 +61,8 @@ st.markdown("""
 <style>
 .block-container {
     padding-top: 0.5rem;
+    padding-bottom: 1rem
+    ;
 }
 </style>
 """, unsafe_allow_html=True)

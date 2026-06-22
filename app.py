@@ -56,10 +56,19 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-st.image(
-    "assets/Combibrug logo.png",
-    width=280
+
+with open("assets/Combibrug logo.png", "rb") as f:
+    logo_data = base64.b64encode(f.read()).decode()
+
+st.markdown(
+    f"""
+    <div style="text-align:center;">
+        <img src="data:image/png;base64,{logo_data}" width="280">
+    </div>
+    """,
+    unsafe_allow_html=True
 )
+
 st.markdown("""
 <div style="
     background-color: rgba(255,255,255,0.85);

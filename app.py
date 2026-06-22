@@ -40,7 +40,7 @@ st.set_page_config(page_title="Workforce Assignment Solver", layout="wide")
 st.markdown("""
 <style>
 div[data-testid="stVerticalBlock"] {
-    background-color: rgba(255,255,255,0.5);
+    background-color: rgba(255,255,255,0.8);
     padding: 15px;
     border-radius: 12px;
 }

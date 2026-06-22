@@ -47,18 +47,31 @@ div[data-testid="stVerticalBlock"] {
 </style>
 """, unsafe_allow_html=True)
 
-col1, col2, col3 = st.columns([1,2,1])
-
 add_bg_image()
+st.markdown(
+    """
+    <h1 style='text-align:center;'>
+    </h1>
+    """,
+    unsafe_allow_html=True
+)
 
-with col2:
-    st.image(
-        "assets/Combibrug logo.png",
-        width=250)
-
-st.title("📋 Workforce Assignment CP Solver")
-st.caption("Constraint Programming model — OR-Tools CP-SAT (weekly model)")
-
+st.image(
+    "assets/Combibrug logo.png",
+    width=280
+)
+st.markdown("""
+<div style="
+    background-color: rgba(255,255,255,0.85);
+    padding: 20px;
+    border-radius: 15px;
+    text-align: center;
+    margin-bottom: 20px;
+">
+<h2>Workforce Assignment CP Solver</h2>
+<p>Constraint Programming model — OR-Tools CP-SAT</p>
+</div>
+""", unsafe_allow_html=True)
 
 
 # ##################################################

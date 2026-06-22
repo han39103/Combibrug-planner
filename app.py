@@ -73,7 +73,11 @@ with open("assets/Combibrug logo.png", "rb") as f:
 
 st.markdown(
     f"""
-    <div style="text-align:center;">
+    <div style="
+        text-align:center;
+        margin-top:-20px;
+        margin-bottom:10px;
+    ">
         <img src="data:image/png;base64,{logo_data}" width="280">
     </div>
     """,
@@ -81,7 +85,7 @@ st.markdown(
 )
 
 st.markdown(
-    f"""
+    """
     <div style="
         background-color: rgba(255,255,255,0.90);
         padding-top: 15px;
@@ -90,7 +94,6 @@ st.markdown(
         text-align: center;
         margin-bottom: 20px;
     ">
-        <img src="data:image/png;base64,{logo_data}" width="280">
         <h2>Workforce Assignment CP Solver</h2>
         <p>Constraint Programming model — OR-Tools CP-SAT</p>
     </div>

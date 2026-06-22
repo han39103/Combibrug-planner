@@ -28,7 +28,7 @@ def add_bg_image():
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(255,255,255,0.40);
+            background: rgba(255,255,255,0.20);
             z-index: -1;
         }}
         </style>

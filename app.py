@@ -80,18 +80,23 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-st.markdown("""
-<div style="
-    background-color: rgba(255,255,255,0.85);
-    padding: 1px;
-    border-radius: 15px;
-    text-align: center;
-    margin-bottom: 20px;
-">
-<h2>Workforce Assignment CP Solver</h2>
-<p>Constraint Programming model — OR-Tools CP-SAT</p>
-</div>
-""", unsafe_allow_html=True)
+st.markdown(
+    f"""
+    <div style="
+        background-color: rgba(255,255,255,0.90);
+        padding-top: 15px;
+        padding-bottom: 25px;
+        border-radius: 15px;
+        text-align: center;
+        margin-bottom: 20px;
+    ">
+        <img src="data:image/png;base64,{logo_data}" width="280">
+        <h2>Workforce Assignment CP Solver</h2>
+        <p>Constraint Programming model — OR-Tools CP-SAT</p>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 
 # ##################################################

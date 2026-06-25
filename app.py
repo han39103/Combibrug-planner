@@ -110,22 +110,7 @@ with st.sidebar:
     staff_file = st.file_uploader("Staff availability file (.xlsx)", type=["xlsx"])
     projects_file = st.file_uploader("Projects file (.xlsx)", type=["xlsx"])
 
-    st.divider()
-    st.header("Planning Period")
-    weekday_options = ["Monday", "Tuesday", "Wednesday", "Thursday",
-                       "Friday", "Saturday", "Sunday"]
-    first_weekday = st.selectbox(
-        "Weekday of the 1st day of the planning period",
-        weekday_options,
-        index=0,
-    )
-    num_days = st.number_input(
-        "Length of planning period (days)",
-        min_value=1,
-        max_value=365,
-        value=30,
-        step=1,
-    )
+
 
     st.divider()
     run_btn = st.button("▶  Run Solver", type="primary", use_container_width=True)
@@ -144,9 +129,8 @@ if run_btn:
             result_df, shortage_df, summary, status_str = run_pipeline(
                 staff_source=staff_source,
                 projects_source=projects_source,
-                first_weekday=first_weekday,
-                num_days=int(num_days),
-            )
+                first_weekday="Monday",
+                num_days=30, )
         
         except Exception:
             st.error(traceback.format_exc())
@@ -205,9 +189,8 @@ if run_btn:
 
 else:
     st.info(
-        "Upload your staff and projects files in the sidebar (or use the "
-        "default sample files), set the planning period parameters (for reference), "
-        "then click **Run Solver**.\n\n"
-        "Note: The optimization itself is based on a single week (Mon–Fri)."
-    )
-
+    "Upload your staff and project files in the sidebar, then click "
+    "**Run Solver**.\n\n"
+    "The optimization is based on a weekly planning model (Monday–Friday)."
+)
+    
